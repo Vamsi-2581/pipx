@@ -138,6 +138,76 @@ def test_self_managed_windows_is_ignored(
 
 
 @_SKIP_ON_WINDOWS
+def test_self_managed_removed_bootstrap_interpreter_is_ignored(
+    self_managed_installation: _SelfManagedInstallation,
+    tmp_path: Path,
+) -> None:
+    source_interpreter = tmp_path / "bootstrap" / "bin" / "python3"
+    (self_managed_installation.venv / PIPX_INFO_FILENAME).write_text(
+        json.dumps(
+            {
+                "main_package": {"package": "pipx"},
+                "source_interpreter": {"__type__": "Path", "__Path__": str(source_interpreter)},
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    assert "PIPX_DEFAULT_PYTHON" not in discover_self_managed_environment(
+        prefix=self_managed_installation.venv,
+        executable=str(self_managed_installation.executable),
+    )
+
+
+@_SKIP_ON_WINDOWS
+def test_self_managed_recreated_bootstrap_interpreter_is_ignored(
+    self_managed_installation: _SelfManagedInstallation,
+    tmp_path: Path,
+) -> None:
+    source_interpreter = tmp_path / "bootstrap" / "bin" / "python3"
+    source_interpreter.parent.mkdir(parents=True)
+    source_interpreter.touch(mode=0o755)
+    (self_managed_installation.venv / PIPX_INFO_FILENAME).write_text(
+        json.dumps(
+            {
+                "main_package": {"package": "pipx"},
+                "source_interpreter": {"__type__": "Path", "__Path__": str(source_interpreter)},
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    assert "PIPX_DEFAULT_PYTHON" not in discover_self_managed_environment(
+        prefix=self_managed_installation.venv,
+        executable=str(self_managed_installation.executable),
+    )
+
+
+@_SKIP_ON_WINDOWS
+def test_self_managed_symlinked_source_interpreter_resolves_to_base_python(
+    self_managed_installation: _SelfManagedInstallation,
+    tmp_path: Path,
+) -> None:
+    source_interpreter = tmp_path / "bootstrap" / "bin" / "python3"
+    source_interpreter.parent.mkdir(parents=True)
+    source_interpreter.symlink_to(self_managed_installation.source_interpreter)
+    (self_managed_installation.venv / PIPX_INFO_FILENAME).write_text(
+        json.dumps(
+            {
+                "main_package": {"package": "pipx"},
+                "source_interpreter": {"__type__": "Path", "__Path__": str(source_interpreter)},
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    assert discover_self_managed_environment(
+        prefix=self_managed_installation.venv,
+        executable=str(self_managed_installation.executable),
+    )["PIPX_DEFAULT_PYTHON"] == str(self_managed_installation.source_interpreter)
+
+
+@_SKIP_ON_WINDOWS
 def test_self_managed_missing_metadata_is_ignored(tmp_path: Path) -> None:
     venv = tmp_path / "pipx" / "venvs" / "pipx"
     venv.mkdir(parents=True)
@@ -193,8 +263,7 @@ def self_managed_installation(tmp_path: Path) -> _SelfManagedInstallation:
     venv = home / "venvs" / "pipx"
     (venv / "bin").mkdir(parents=True)
     (venv / "bin" / "pipx").touch(mode=0o755)
-    source_interpreter = tmp_path / "python-custom"
-    source_interpreter.touch(mode=0o755)
+    source_interpreter = Path(sys.executable).resolve()
     (venv / PIPX_INFO_FILENAME).write_text(
         json.dumps({
             "main_package": {"package": "pipx"},
