@@ -57,7 +57,18 @@ def discover_self_managed_environment(
         and source_interpreter.get("__type__") == "Path"
         and isinstance(source_path := source_interpreter.get("__Path__"), str)
     ):
-        environment["PIPX_DEFAULT_PYTHON"] = source_path
+        # Older installations may record a symlink inside the environment that
+        # was used to bootstrap pipx. That path can disappear, or later point to
+        # a different Python. Only reuse it when it still resolves to pipx's own
+        # base interpreter.
+        try:
+            recorded_interpreter = Path(source_path).resolve(strict=True)
+            current_interpreter = Path(sys.executable).resolve(strict=True)
+        except (OSError, RuntimeError):
+            pass
+        else:
+            if recorded_interpreter == current_interpreter:
+                environment["PIPX_DEFAULT_PYTHON"] = str(recorded_interpreter)
     return environment
 
 
