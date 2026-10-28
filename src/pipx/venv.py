@@ -326,7 +326,9 @@ class Venv:  # ruff:ignore[too-many-public-methods]  # single facade over a pipx
         self.pipx_metadata.python_version = None
         source_interpreter = shutil.which(self.python)
         if source_interpreter:
-            self.pipx_metadata.source_interpreter = Path(source_interpreter)
+            # Store the base interpreter rather than a symlink inside a temporary
+            # environment used to bootstrap a self-managed pipx installation.
+            self.pipx_metadata.source_interpreter = Path(source_interpreter).resolve()
 
     def safe_to_remove(self) -> bool:
         return not self._existing
